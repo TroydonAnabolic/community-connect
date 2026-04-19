@@ -1,0 +1,96 @@
+// firestore.rules
+// Deploy with: firebase deploy --only firestore:rules
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return isAuth() && request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isNotBanned() {
+      return isAuth() && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.isBanned == false;
+    }
+
+    // Users
+    match /users/{uid} {
+      allow read: if isAuth();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // Posts
+    match /posts/{postId} {
+      allow read: if isAuth() && (resource.data.modStatus == 'approved' || isAdmin() || resource.data.authorId == request.auth.uid);
+      allow create: if isAuth() && isNotBanned();
+      allow update: if (isOwner(resource.data.authorId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['modStatus', 'reportCount'])) || isAdmin();
+      allow delete: if isOwner(resource.data.authorId) || isAdmin();
+
+      // Comments sub-collection
+      match /comments/{commentId} {
+        allow read: if isAuth() && (resource.data.modStatus == 'approved' || isAdmin());
+        allow create: if isAuth() && isNotBanned();
+        allow update: if (isOwner(resource.data.authorId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['modStatus'])) || isAdmin();
+        allow delete: if isOwner(resource.data.authorId) || isAdmin();
+      }
+    }
+
+    // Events
+    match /events/{eventId} {
+      allow read: if isAuth() && (resource.data.modStatus == 'approved' || isAdmin() || resource.data.hostId == request.auth.uid);
+      allow create: if isAuth() && isNotBanned();
+      allow update: if (isOwner(resource.data.hostId) && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['modStatus'])) || isAdmin();
+      allow delete: if isOwner(resource.data.hostId) || isAdmin();
+    }
+
+    // Direct messages - only participants can read
+    match /conversations/{convId} {
+      allow read, write: if isAuth() && request.auth.uid in resource.data.participants;
+      allow create: if isAuth();
+
+      match /messages/{msgId} {
+        allow read: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
+        allow create: if isAuth() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(convId)).data.participants;
+        allow update: if isOwner(resource.data.senderId);
+      }
+    }
+
+    // Check-ins — owner + trusted contacts
+    match /check_ins/{uid}/entries/{entryId} {
+      allow read: if isOwner(uid) || (isAuth() && request.auth.uid in resource.data.visibleTo) || isAdmin();
+      allow create, update: if isOwner(uid);
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Wellbeing content — read-only for users, write for admins
+    match /wellbeing_content/{contentId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Notifications — owner only
+    match /notifications/{notifId} {
+      allow read, update: if isOwner(resource.data.userId);
+      allow create: if isAdmin();
+      allow delete: if isOwner(resource.data.userId) || isAdmin();
+    }
+
+    // Mod queue — admin only
+    match /mod_queue/{itemId} {
+      allow read, write: if isAdmin();
+    }
+
+    // Analytics — admin only
+    match /analytics/{docId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}
