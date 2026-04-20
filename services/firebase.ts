@@ -7,7 +7,8 @@
 //   - Cloud Messaging (for push notifications)
 
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 
@@ -23,7 +24,16 @@ const firebaseConfig = {
 // Prevent re-initialisation in development with hot-reload
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-export const auth = getAuth(app);
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage),
+    });
+  } catch {
+    // Auth may already be initialized during fast refresh.
+    return getAuth(app);
+  }
+})();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
