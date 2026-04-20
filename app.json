@@ -24,6 +24,7 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.communityconnect.app",
       "permissions": [
         "android.permission.CAMERA",
@@ -61,7 +62,7 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/notification-icon.png",
+          "icon": "./assets/images/notification-icon.png",
           "color": "#1D9E75",
           "sounds": []
         }
