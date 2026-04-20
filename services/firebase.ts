@@ -6,32 +6,51 @@
 //   - Firebase Storage
 //   - Cloud Messaging (for push notifications)
 
-import { initializeApp, getApps } from 'firebase/app';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getAuth, getReactNativePersistence, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getApps, initializeApp } from "firebase/app";
+import * as FirebaseAuth from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || 'YOUR_API_KEY',
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || 'YOUR_AUTH_DOMAIN',
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || 'YOUR_PROJECT_ID',
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || 'YOUR_STORAGE_BUCKET',
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || 'YOUR_SENDER_ID',
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || 'YOUR_APP_ID',
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain:
+    process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN || "YOUR_AUTH_DOMAIN",
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+  storageBucket:
+    process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET || "YOUR_STORAGE_BUCKET",
+  messagingSenderId:
+    process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || "YOUR_SENDER_ID",
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID || "YOUR_APP_ID",
 };
 
 // Prevent re-initialisation in development with hot-reload
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+const app =
+  getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+
+type AuthDependencies = NonNullable<
+  Parameters<typeof FirebaseAuth.initializeAuth>[1]
+>;
+const getReactNativePersistence = (
+  FirebaseAuth as {
+    getReactNativePersistence?: (
+      storage: typeof AsyncStorage,
+    ) => AuthDependencies["persistence"];
+  }
+).getReactNativePersistence;
 
 export const auth = (() => {
   try {
-    return initializeAuth(app, {
+    if (!getReactNativePersistence) {
+      return FirebaseAuth.getAuth(app);
+    }
+
+    return FirebaseAuth.initializeAuth(app, {
       persistence: getReactNativePersistence(AsyncStorage),
     });
   } catch {
     // Auth may already be initialized during fast refresh.
-    return getAuth(app);
+    return FirebaseAuth.getAuth(app);
   }
 })();
 export const db = getFirestore(app);
